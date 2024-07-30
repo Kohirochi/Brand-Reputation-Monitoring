@@ -8,3 +8,4 @@ numerize
 streamlit-extras
 lingua-language-detector
 translators
+scikit-learn
