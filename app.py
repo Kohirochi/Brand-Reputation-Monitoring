@@ -14,13 +14,6 @@ from plotly.subplots import make_subplots
 from lingua import Language, LanguageDetectorBuilder
 import translators as ts
 
-# Set page configuration with larger font size for the title
-st.set_page_config(
-    page_title="BReMo", 
-    page_icon=":material/track_changes:", 
-    layout="wide", 
-    initial_sidebar_state="expanded"
-)
 def show_file_upload_details():
     # Title for the File Upload Tab
     st.header("File Upload Tab | File-Based Prediction")
@@ -220,8 +213,6 @@ def compute_score(predicted_classes):
             social_weightage * proportion(counts['social media']['negative'], totals['social media']) +
             ecom_weightage * proportion(counts['e-commerce']['negative'], totals['e-commerce'])
         )
-        print(positive_proportion, proportion(counts['social media']['positive'], totals['social media']), proportion(counts['e-commerce']['positive'], totals['e-commerce']))
-        print(negative_proportion, proportion(counts['social media']['negative'], totals['social media']), proportion(counts['e-commerce']['negative'], totals['e-commerce']))
     else:
         total_comments = len(predicted_classes)
         positive_proportion = predicted_classes.value_counts().get("positive", 0) / total_comments if total_comments > 0 else 0
@@ -429,16 +420,16 @@ def plot_pie_chart(df, values, names):
 
 # Sentiment Distribution (SD)
 def sentiment_distribution_plot():
-    df = st.session_state.result
+    df = get_state('result')
+    type_column_present = get_state('type_column_present')
+    brand_column_present = get_state('brand_column_present')
 
-    if not st.session_state.brand_column_present and not st.session_state.type_column_present:
+    if not brand_column_present and not type_column_present:
         pass
     else:
         sd_container = st.container(border=True)
         with sd_container:
             st.subheader("Distribution")
-            type_column_present = st.session_state.type_column_present
-            brand_column_present = st.session_state.brand_column_present
 
             # Initialize selections
             selected_comment_type = 'All'
@@ -510,13 +501,13 @@ def time_series_plot(df):
         with selectbox_container:
             selectbox1, selectbox2 = st.columns(2, gap="small")
             with selectbox1:
-                group_by = st.selectbox("Group by", ["Year", "Month"])
-                st.session_state.time_series_group_by = group_by
-            if st.session_state.brand_column_present and group_by == "Month":
+                st.selectbox("Group by", ["Year", "Month"], key='time_series_group_by')
+            if get_state('brand_column_present') and get_state('time_series_group_by') == "Month":
                 with selectbox2:
                     brand = st.selectbox('Brand', df['Brand'].unique())
                     st.session_state.time_series_brand = brand
-            if group_by == "Month":
+            # print_state(default_values)
+            if get_state('time_series_group_by') == "Month":
                 plot_brand_reputation_over_month(df)
             else:
                 plot_brand_reputation_over_year(df)
@@ -608,6 +599,31 @@ def load_model():
 def load_vectorizer():
     return joblib.load('vectorizer.pkl')
 
+# Set page configuration with larger font size for the title
+st.set_page_config(
+    page_title="BReMo", 
+    page_icon=":material/track_changes:", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
+
+try:
+    model = load_model()
+    vectorizer = load_vectorizer()
+except Exception as e:
+    st.error(f"Error loading model or vectorizer: {e}")
+
+st.markdown("<h1 style='text-align: center; color: white; margin: 0 0 20px 0;'>Brand Reputation Monitoring</h1>", unsafe_allow_html=True)
+
+navigation = option_menu(
+                menu_title=None, 
+                options=["Home", "Text", "File Upload"], 
+                icons=['house', "file-text", "cloud-arrow-up"], 
+                menu_icon="cast", 
+                default_index=0, 
+                orientation="horizontal"
+            )
+
 # Session State
 # Default values for session state
 default_values = {
@@ -627,25 +643,8 @@ default_values = {
 # Initialize session state on app startup
 initialize_session_state()
 
-try:
-    model = load_model()
-    vectorizer = load_vectorizer()
-except Exception as e:
-    st.error(f"Error loading model or vectorizer: {e}")
-
-st.markdown("<h1 style='text-align: center; color: white; margin: 0 0 20px 0;'>Brand Reputation Monitoring</h1>", unsafe_allow_html=True)
-
-navigation = option_menu(
-                menu_title=None, 
-                options=["Home", "Text", "File Upload"], 
-                icons=['house', "file-text", "cloud-arrow-up"], 
-                menu_icon="cast", 
-                default_index=0, 
-                orientation="horizontal"
-            )
-
-
 if navigation == "Home":
+    reset_session()
     cols  = st.columns(2, gap="small")
     with cols[0]:
         show_text_tab_details()
@@ -653,6 +652,7 @@ if navigation == "Home":
         show_file_upload_details()
 
 if navigation == "Text":
+    reset_session()
     st.subheader("Single Comment Prediction")
 
     # Text Input
@@ -708,7 +708,7 @@ if navigation == "File Upload":
             )
 
     # File Upload
-    uploaded_file = st.file_uploader("Choose a CSV or Excel file", type=["xlsx", "xls", "csv"], on_change=reset_session)
+    uploaded_file = st.file_uploader("Choose a CSV or Excel file", type=["xlsx", "xls", "csv"] , on_change=reset_session)
 
     # Predict Button
     if st.button("Predict"):
@@ -730,6 +730,8 @@ if navigation == "File Upload":
                 st.error("Excel file does not contain a column named 'Comment'.")
             else:
                 stop_button = st.empty() # Placeholder for the Stop button
+
+                result_tab, dashboard_tab = st.tabs(["Result", "Dashboard"])
                 with st.spinner('Processing...'):
                     # Preprocess
                     df = df.dropna(subset=['Comment'])
@@ -778,10 +780,8 @@ if navigation == "File Upload":
                         get_state('progress_bar').empty()
                         stop_button.empty()
                     else:
-                        df = st.session_state.result
-
-                    result_tab, dashboard_tab = st.tabs(["Result", "Dashboard"])
-
+                        df = get_state('result')
+                    
                     # Result Tab
                     with result_tab:
                         st.dataframe(df.iloc[:1000], use_container_width=True) # Display only the first 1000 rows
