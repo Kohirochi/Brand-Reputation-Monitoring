@@ -1,0 +1,10 @@
+streamlit
+streamlit-option-menu
+joblib
+pandas
+emoji
+plotly
+numerize
+streamlit-extras
+lingua-language-detector
+translators
