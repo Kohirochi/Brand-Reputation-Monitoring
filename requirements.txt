@@ -7,6 +7,5 @@ plotly
 numerize
 streamlit-extras
 lingua-language-detector
-translators
+translators==5.9.2
 scikit-learn
-exejs
